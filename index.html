@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+	<meta charset="utf-8" />
+    <title>vue list</title>
+    <link
+      rel="stylesheet"
+      href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"
+    />
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.js"></script>
+    <!-- <script src="broiler.min.js"></script> -->
+    <style>
+      .point {
+        position: absolute;
+        z-index: 9;
+        text-align: center;
+        border: 1px solid #d3d3d3;
+      }
+      #left-panel {
+        position: absolute;
+        right: 0;
+        top: 0;
+        min-width: 100px;
+        min-height: 100px;
+        max-height: 500px;
+        overflow: scroll;
+        background: rgba(154, 198, 80, 0.4);
+        padding: 10px 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div
+        v-for="point in points"
+        v-bind:style="point.styleObject"
+        class="point"
+        v-bind:id="point.id"
+        onclick="clickPoint(event)"
+      ></div>
+      <div id="left-panel">
+        <!-- <div
+          v-for="point in points"
+          v-bind:info="point.id"
+          onmouseover="overPointList(event)"
+          onmouseout="outPointList(event)"
+        >
+          {{ point.id }}
+        </div> -->
+        <form>
+          <input
+            type="radio"
+            name="statetype"
+            value="addPointMode"
+            onclick="changeMode()"
+            checked
+          />addPointMode
+          <input
+            type="radio"
+            name="statetype"
+            value="deletePointMode"
+            onclick="changeMode()"
+          />deletePointMode
+          <input
+            type="radio"
+            name="statetype"
+            value="getPixelColor"
+            onclick="changeMode()"
+          />getPixelColor
+          <input
+            type="radio"
+            name="statetype"
+            value="setGroupMode"
+            onclick="changeMode()"
+          />setGroupMode
+        </form>
+        <br />
+        <button id="reveal-pts-info-btn">顯示一群點的座標</button>
+        <br />
+        <button id="set-pts-info-btn">設定一群點的座標</button>
+        <button id="generate-opengl-code-btn">生成opengl程式碼</button>
+        <br />
+        <br />
+        <br />
+        <form>
+          <input type="radio" name="drawtype" value="polygon" checked />polygon
+          <input type="radio" name="drawtype" value="triangles" />triangles
+        </form>
+        <button id="set-group-btn">
+          設定群組
+        </button>
+        <div
+          id="curColor-box"
+          style="width: 20px; height: 20px; border: 1px solid black;"
+        ></div>
+        <div>底下是groups</div>
+        <div
+          v-for="group in groups"
+          onmouseover="overGroupList(event)"
+          onmouseout="outGroupList(event)"
+          v-bind:id="group.id"
+        >
+          {{ group.id }}<button @click="removeGroup(group.id)">remove</button>
+        </div>
+      </div>
+    </div>
+    <img id="image" src="Geometric_Deer.webp" style="display: none;" />
+    <canvas id="myCanvas" width="1000" height="800">
+      Your user agent does not support the HTML5 Canvas element.
+    </canvas>
+    <div id="dialog" title="顯示所有點的座標與樣式資料">
+      <textarea
+        id="get-point-info-textarea"
+        style="width: 80%; height: 80%; margin: 10%"
+        readonly
+      ></textarea>
+    </div>
+    <div id="dialog-2" title="設定所有點的座標與樣式資料">
+      <textarea
+        id="point-info-textarea"
+        style="width: 80%; height: 80%; margin: 10%"
+      ></textarea>
+    </div>
+    <div id="dialog-3" title="顯示生成的opengl程式碼">
+      <textarea
+        id="opengl-info-textarea"
+        style="width: 80%; height: 80%; margin: 10%"
+        readonly
+      ></textarea>
+    </div>
+
+    <script>
+      function _uuid() {
+        function s4() {
+          return Math.floor((1 + Math.random()) * 0x10000)
+            .toString(16)
+            .substring(1);
+        }
+        return (
+          s4() +
+          s4() +
+          "-" +
+          s4() +
+          "-" +
+          s4() +
+          "-" +
+          s4() +
+          "-" +
+          s4() +
+          s4() +
+          s4()
+        );
+      }
+      let curColorBox = document.getElementById("curColor-box");
+
+      function setPtColor(p_id, color) {
+        for (let i = 0; i < app.points.length; i++) {
+          const element = app.points[i];
+          if (element.id === p_id) {
+            app.points[i].styleObject.background = color;
+            break;
+          }
+        }
+      }
+
+      function overPointList(e) {
+        let pID = e.srcElement.getAttribute("info");
+        setPtColor(pID, "yellow");
+      }
+
+      function outPointList(e) {
+        let pID = e.srcElement.getAttribute("info");
+        setPtColor(pID, "red");
+      }
+
+      function overGroupList(e) {
+        console.log(e.target.id);
+        let gID = e.target.id;
+        for (let i = 0; i < app.groups.length; i++) {
+          const element = app.groups[i];
+          if (element.id === gID) {
+            element.points.forEach(function(p_id) {
+              setPtColor(p_id, "yellow");
+            });
+            break;
+          }
+        }
+      }
+
+      function outGroupList(e) {
+        console.log(e.target.id);
+        let gID = e.target.id;
+        for (let i = 0; i < app.groups.length; i++) {
+          const element = app.groups[i];
+          if (element.id === gID) {
+            element.points.forEach(function(p_id) {
+              setPtColor(p_id, "red");
+            });
+            break;
+          }
+        }
+      }
+
+      //Make the DIV element draggagle
+      // 要pointIndex是為了更新point在vue instance
+      function dragElement(elmnt, pointID) {
+        var pos1 = 0,
+          pos2 = 0,
+          pos3 = 0,
+          pos4 = 0;
+        elmnt.onmousedown = dragMouseDown;
+        var curPointIndex = -1;
+
+        function dragMouseDown(e) {
+          // 用id找目前在陣列的哪一個index
+          for (let i = 0; i < app.points.length; i++) {
+            if (app.points[i].id === pointID) {
+              curPointIndex = i;
+              console.log("curPointIndex", curPointIndex);
+              break;
+            }
+          }
+
+          e = e || window.event;
+          e.preventDefault();
+          // get the mouse cursor position at startup:
+          pos3 = e.clientX;
+          pos4 = e.clientY;
+          document.onmouseup = closeDragElement;
+          // call a function whenever the cursor moves:
+          document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+          e = e || window.event;
+          e.preventDefault();
+          // calculate the new cursor position:
+          pos1 = pos3 - e.clientX;
+          pos2 = pos4 - e.clientY;
+          pos3 = e.clientX;
+          pos4 = e.clientY;
+          // set the element's new position:
+          elmnt.style.top = elmnt.offsetTop - pos2 + "px";
+          elmnt.style.left = elmnt.offsetLeft - pos1 + "px";
+        }
+
+        function closeDragElement(e) {
+          /* stop moving when mouse button is released:*/
+          // 要根據id和mouseup的位置更改儲存數據~點的位置
+          // alert(e.target.id);
+          // 更新回去vue instance的部分放在這，因為頻繁地經由vue更新dom很沒有效率
+          app.points[curPointIndex].styleObject.top = elmnt.style.top;
+          app.points[curPointIndex].styleObject.left = elmnt.style.left;
+
+          document.onmouseup = null;
+          document.onmousemove = null;
+        }
+      }
+
+      function changeMode() {
+        console.log($("input[name=statetype]:checked").val());
+        curState = StateEnum[$("input[name=statetype]:checked").val()];
+        console.log("curState : ", curState);
+      }
+
+      function clickPoint(e) {
+        let curID = e.target.id;
+
+        if (curState === StateEnum.deletePointMode) {
+          for (let i = 0; i < app.points.length; i++) {
+            const point = app.points[i];
+            console.log(point);
+            if (point.id === curID) {
+              app.points.splice(i, 1);
+            }
+          }
+        } else if (curState === StateEnum.setGroupMode) {
+          app.curSelectPts.push(curID);
+          e.target.style.background = "yellow";
+        }
+      }
+
+      var app = new Vue({
+        el: "#app",
+        data: {
+          points: [],
+          groups: [],
+          curSelectPts: []
+        },
+        methods: {
+          removeGroup: function(group_id) {
+            for (let i = 0; i < this.groups.length; i++) {
+              const group = this.groups[i];
+              if (group.id === group_id) {
+                this.groups.splice(i, 1);
+              }
+            }
+          }
+        }
+      });
+
+      // !!!!!!!!! appDom一定要在建立Vue的實體後才取，因為Vue會刷新取到的Dom而失去連結
+      var appDom = document.getElementById("app");
+      var mutationObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.type === "childList") {
+            if (mutation.addedNodes.length > 0) {
+              // let pointIndex = parseInt(
+              //   mutation.addedNodes[0].id.split("-")[1]
+              // );
+              dragElement(mutation.addedNodes[0], mutation.addedNodes[0].id);
+            }
+          }
+        });
+        console.log(mutations);
+      });
+      mutationObserver.observe(appDom, {
+        childList: true
+      });
+
+      var dialog = $("#dialog").dialog({
+        autoOpen: false,
+        height: 400,
+        width: 350,
+        modal: true,
+        open: function() {
+          let saveDict = {
+            points: app.points,
+            groups: app.groups
+          };
+          $("#get-point-info-textarea").val(JSON.stringify(saveDict));
+        },
+        buttons: {
+          Cancel: function() {
+            dialog.dialog("close");
+          },
+          Copy: function() {
+            $("#get-point-info-textarea").select();
+            document.execCommand("copy");
+          }
+        }
+      });
+
+      var dialog2 = $("#dialog-2").dialog({
+        autoOpen: false,
+        height: 400,
+        width: 350,
+        modal: true,
+        buttons: {
+          Cancel: function() {
+            dialog2.dialog("close");
+          },
+          Set: function() {
+            let saveDict = JSON.parse($("#point-info-textarea").val());
+            let pointsArr = saveDict.points;
+            let groupsArr = saveDict.groups;
+            app.points = pointsArr;
+            app.groups = groupsArr;
+            // 因為有新的點，產生的id可能重複
+            let maxIndex = 0;
+            pointsArr.forEach(function(point) {
+              let i = parseInt(point.id.split("-")[1]);
+              if (i > maxIndex) {
+                maxIndex = i;
+              }
+            });
+            curPointIndex = maxIndex + 1;
+            console.log("curPointIndex : ", curPointIndex);
+            dialog2.dialog("close");
+          }
+        }
+      });
+
+      function parseStylePx(str) {
+        return parseInt(str.substring(0, str.length - 2));
+      }
+
+      function getPointPosById(p_id) {
+        for (let i = 0; i < app.points.length; i++) {
+          const point = app.points[i];
+          console.log(point);
+          console.log(point.id);
+          if (p_id == point.id) {
+            console.log("haha");
+            let xStr = point.styleObject.left;
+            let yStr = point.styleObject.top;
+            let widthStr = point.styleObject.width;
+            let heightStr = point.styleObject.height;
+            let x = parseStylePx(xStr);
+            let y = parseStylePx(yStr);
+            let w = parseStylePx(widthStr);
+            let h = parseStylePx(heightStr);
+            x += w / 2;
+            y += h / 2;
+            // 因為opengl原點在左下角，而網頁的座標系統原點在左上角
+            y = canvas.clientHeight - y;
+            let pos = { x: x, y: y };
+            return pos;
+          }
+        }
+      }
+
+      var dialog3 = $("#dialog-3").dialog({
+        autoOpen: false,
+        height: 700,
+        width: 600,
+        modal: true,
+        open: function() {
+          // 要生成程式碼
+          let code = "";
+          app.groups.forEach(function(group) {
+            console.log(group);
+            // 設定顏色的部分
+            console.log(group.color);
+            let color = group.color;
+            let r = color.r / 255.0;
+            let g = color.g / 255.0;
+            let b = color.b / 255.0;
+            code += `glColor3f(${r}, ${g}, ${b});\n`;
+
+            if (group.type === "polygon") {
+              code += "glBegin(GL_POLYGON);\n";
+            } else if (group.type === "triangles") {
+              code += "glBegin(GL_TRIANGLES);\n";
+            }
+            group.points.forEach(function(p_id) {
+              let vertexStr = "";
+              let pos = getPointPosById(p_id);
+              code += `glVertex2f(${pos.x}, ${pos.y});\n`;
+            });
+            code += "glEnd();\n";
+          });
+          $("#opengl-info-textarea").val(code);
+        },
+        buttons: {
+          Cancel: function() {
+            dialog3.dialog("close");
+          },
+          Copy: function() {
+            $("#opengl-info-textarea").select();
+            document.execCommand("copy");
+          }
+        }
+      });
+      let revealPtsInfoBtn = document.getElementById("reveal-pts-info-btn");
+      revealPtsInfoBtn.onclick = function() {
+        dialog.dialog("open");
+      };
+      let setPtsInfoBtn = document.getElementById("set-pts-info-btn");
+      setPtsInfoBtn.onclick = function() {
+        dialog2.dialog("open");
+      };
+
+      let setGrouptBtn = document.getElementById("set-group-btn");
+      setGrouptBtn.onclick = function() {
+        let drawtype = $("input[name=drawtype]:checked").val();
+        console.log(drawtype);
+        app.curSelectPts.forEach(function(pt_id) {
+          let ptDom = document.getElementById(pt_id);
+          ptDom.style.background = "red";
+        });
+        app.groups.push({
+          id: _uuid(),
+          type: drawtype,
+          points: Array.from(app.curSelectPts),
+          color: curColor
+        });
+        app.curSelectPts.length = 0;
+      };
+
+      let generateOpenglBtn = document.getElementById(
+        "generate-opengl-code-btn"
+      );
+      generateOpenglBtn.onclick = function() {
+        dialog3.dialog("open");
+      };
+
+      // 利用畫布取圖片的某像素顏色
+      var canvas = $("#myCanvas").get(0);
+      var ctx = canvas.getContext("2d");
+      var image = new Image();
+      image.src = "Geometric_Deer.webp";
+      $(image).load(function() {
+        ctx.drawImage(image, 0, 0);
+      });
+
+      var curColor = { r: 0, g: 0, b: 0 };
+
+      $(canvas).click(function(e) {
+        var canvasOffset = $(canvas).offset();
+        var canvasX = Math.floor(e.pageX - canvasOffset.left);
+        var canvasY = Math.floor(e.pageY - canvasOffset.top);
+
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var pixels = imageData.data;
+        var pixelRedIndex =
+          (canvasY - 1) * (imageData.width * 4) + (canvasX - 1) * 4;
+        var pixelcolor =
+          "rgba(" +
+          pixels[pixelRedIndex] +
+          ", " +
+          pixels[pixelRedIndex + 1] +
+          ", " +
+          pixels[pixelRedIndex + 2] +
+          ", " +
+          pixels[pixelRedIndex + 3] +
+          ")";
+        console.log("color : " + pixelcolor);
+
+        if (curState === StateEnum.getPixelColor) {
+          curColorBox.style.background = pixelcolor;
+          console.log(curColorBox.style.background);
+          $("#curColor-box").css({ background: pixelcolor });
+          curColor = {
+            r: pixels[pixelRedIndex],
+            g: pixels[pixelRedIndex + 1],
+            b: pixels[pixelRedIndex + 2]
+          };
+        }
+      });
+
+      // 有幾種模式，一種是增加點、刪除點、取圖像某像素的顏色
+      const StateEnum = {
+        addPointMode: 1,
+        deletePointMode: 2,
+        getPixelColor: 3,
+        setGroupMode: 4
+      };
+      Object.freeze(StateEnum);
+      var curState = StateEnum.addPointMode;
+      let imageDom = document.getElementById("image");
+      let curPointIndex = 0;
+      canvas.onclick = function(e) {
+        if (curState === StateEnum.addPointMode) {
+          let width = 10;
+          let height = 10;
+          let curID = "point-" + curPointIndex;
+          let styleSetting = {
+            width: `${width}px`,
+            height: `${height}px`,
+            left: `${e.x - width / 2}px`,
+            top: `${e.y - height / 2}px`,
+            background: "red"
+          };
+          app.points.push({ id: curID, styleObject: styleSetting });
+          console.log(document.getElementById(curID));
+          curPointIndex++;
+        }
+      };
+
+      // 設定快捷鍵
+      document.onkeydown = function(e) {
+        if (e.keyCode === 49) {
+          // 數字鍵1
+          // addPointMode
+          $("input[value=addPointMode]").prop("checked", true);
+          $("input[value=deletePointMode]").prop("checked", false);
+          $("input[value=getPixelColor]").prop("checked", false);
+          $("input[value=setGroupMode]").prop("checked", false);
+          changeMode();
+        } else if (e.keyCode === 50) {
+          // 數字鍵2
+          // deletePointMode
+          $("input[value=addPointMode]").prop("checked", false);
+          $("input[value=deletePointMode]").prop("checked", true);
+          $("input[value=getPixelColor]").prop("checked", false);
+          $("input[value=setGroupMode]").prop("checked", false);
+          changeMode();
+        } else if (e.keyCode === 51) {
+          // 數字鍵3
+          // getPixelColor
+          $("input[value=addPointMode]").prop("checked", false);
+          $("input[value=deletePointMode]").prop("checked", false);
+          $("input[value=getPixelColor]").prop("checked", true);
+          $("input[value=setGroupMode]").prop("checked", false);
+          changeMode();
+        } else if (e.keyCode === 52) {
+          // 數字鍵4
+          // setGroupMode
+          $("input[value=addPointMode]").prop("checked", false);
+          $("input[value=deletePointMode]").prop("checked", false);
+          $("input[value=getPixelColor]").prop("checked", false);
+          $("input[value=setGroupMode]").prop("checked", true);
+          changeMode();
+        } else if (e.keyCode === 71) {
+          // 數字鍵 G
+          // 設定群組
+          $("#set-group-btn").click();
+        }
+      };
+    </script>
+  </body>
+</html>
